@@ -20,7 +20,7 @@ from tqdm import tqdm
 class CelebA_dataset(Dataset):
     def __init__(self, opt):
         print("Load file from :" ,opt.image_root)
-        self.images = np.load(opt.image_root)
+        self.images = torch.load(opt.image_root)
         self.num_samples = len(self.images)
 
     def __getitem__(self, index):

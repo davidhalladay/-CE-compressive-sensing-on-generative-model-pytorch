@@ -17,7 +17,8 @@ import matplotlib.pyplot as plt
 from PIL import Image
 from tqdm import tqdm
 
-def preprocessor(path, image_size):
+def preprocessor(path, image_size, sample_num = None):
+    print("Start images data preprocessing.")
     figsize = image_size
     images = []
     file_list = os.listdir(path)
@@ -28,13 +29,17 @@ def preprocessor(path, image_size):
         transforms.ToTensor(),
         transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])])
 
+    if sample_num != None:
+        print("Sample only {} of data.".format(sample_num))
+        file_list = file_list[:sample_num]
+
     for i, file in enumerate(tqdm(file_list)):
         img = Image.open(os.path.join(path, file))
         img = transform(img)
         images.append(img)
 
     images = torch.stack(images)
-    images = images.transpose(1, 2).transpose(2, 3)
+    #images = images.transpose(1, 2).transpose(2, 3)
     return images
 
 
@@ -43,8 +48,9 @@ def main():
     file_root = '../dataset/celeba/train/images'
     save_root = '../dataset/celeba/train/preprocessing'
     image_size = 64
-    tensor = preprocessor(file_root, image_size)
-    torch.save(tensor, os.path.join(save_root,'celebA_64.pt'))
+    sample_num = 20000
+    tensor = preprocessor(file_root, image_size, sample_num=sample_num)
+    torch.save(tensor, os.path.join(save_root,'celebA_64_'+str(sample_num)+'.pt'))
 # main()
 
 if __name__ == '__main__':

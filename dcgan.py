@@ -56,7 +56,7 @@ class Generator(nn.Module):
 
 # Define the Discriminator Network
 class Discriminator(nn.Module):
-    def __init__(self, params):
+    def __init__(self, opt):
         super().__init__()
 
         # Input Dimension: (nc) x 64 x 64
@@ -87,6 +87,6 @@ class Discriminator(nn.Module):
         x = F.leaky_relu(self.bn3(self.conv3(x)), 0.2, True)
         x = F.leaky_relu(self.bn4(self.conv4(x)), 0.2, True)
 
-        x = F.sigmoid(self.conv5(x))
+        x = torch.sigmoid(self.conv5(x))
 
         return x
