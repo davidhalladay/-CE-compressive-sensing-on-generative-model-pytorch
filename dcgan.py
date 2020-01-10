@@ -50,7 +50,7 @@ class Generator(nn.Module):
         x = F.relu(self.bn3(self.tconv3(x)))
         x = F.relu(self.bn4(self.tconv4(x)))
 
-        x = F.tanh(self.tconv5(x))
+        x = torch.tanh(self.tconv5(x))
 
         return x
 

@@ -4,10 +4,13 @@ import torch.nn as nn
 import torch.optim as optim
 import torchvision.utils as vutils
 import numpy as np
-import matplotlib.pyplot as plt
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt 
 import matplotlib.animation as animation
 import random
 import string
+import os
 from CelebA_dataset import CelebA_dataset
 from torch.utils.data import Dataset, DataLoader
 
@@ -26,14 +29,15 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--dataset', required=True, help='celeba | mnist')
 # parser.add_argument('--dataroot', required=True, help='path to dataset')
 parser.add_argument('--image_root', required=True, help='Path to the preprocessed data')
+parser.add_argument('--save_folder', required=True, help='Path to save the data')
 parser.add_argument('--workers', type=int, help='number of data loading workers', default=2)
 parser.add_argument('--batchSize', type=int, default=64, help='input batch size')
 parser.add_argument('--imageSize', type=int, default=64, help='the height / width of the input image to network')
-parser.add_argument('--nz', type=int, default=100, help='size of the latent z vector')
+parser.add_argument('--nz', type=int, default=100, help='size of the latent z vector (measurements)')
 parser.add_argument('--nc', type=int, default=3, help='Number of channles in the training images. For coloured images this is 3.')
 parser.add_argument('--ngf', type=int, default=64)
 parser.add_argument('--ndf', type=int, default=64)
-parser.add_argument('--nepochs', type=int, default=20, help='number of epochs to train for')
+parser.add_argument('--nepochs', type=int, default=40, help='number of epochs to train for')
 parser.add_argument('--save_epoch', type=int, default=10, help='save step.')
 parser.add_argument('--lr', type=float, default=0.0002, help='learning rate, default=0.0002')
 parser.add_argument('--beta1', type=float, default=0.5, help='beta1 for adam. default=0.5')
@@ -48,6 +52,9 @@ parser.add_argument('--classes', default='bedroom', help='comma separated list o
 opt = parser.parse_args()
 print("<" + "="*20 + ">")
 print(opt)
+
+# folder
+os.makedirs(opt.save_folder, exist_ok=True)
 
 # Use GPU is available else use CPU.
 device = torch.device("cuda:0" if(torch.cuda.is_available()) else "cpu")
@@ -97,6 +104,7 @@ real_label = 1
 fake_label = 0
 
 # Optimizer for the discriminator.
+
 optimizerD = optim.Adam(netD.parameters(), lr=opt.lr, betas=(opt.beta1, 0.999))
 # Optimizer for the generator.
 optimizerG = optim.Adam(netG.parameters(), lr=opt.lr, betas=(opt.beta1, 0.999))
@@ -127,7 +135,8 @@ for epoch in range(opt.nepochs):
         output = netD(real_data).view(-1)
         errD_real = criterion(output, label)
         # Calculate gradients for backpropagation.
-        errD_real.backward()
+        if i % 2 ==0:
+            errD_real.backward()
         D_x = output.mean().item()
 
         # Sample random data from a unit normal distribution.
@@ -146,13 +155,15 @@ for epoch in range(opt.nepochs):
         output = netD(fake_data.detach()).view(-1)
         errD_fake = criterion(output, label)
         # Calculate gradients for backpropagation.
-        errD_fake.backward()
+        if i % 2 ==0:
+            errD_fake.backward()
         D_G_z1 = output.mean().item()
 
         # Net discriminator loss.
         errD = errD_real + errD_fake
         # Update discriminator parameters.
-        optimizerD.step()
+        if i % 2 ==0:
+            optimizerD.step()
 
         # Make accumalted gradients of the generator zero.
         netG.zero_grad()
@@ -175,10 +186,10 @@ for epoch in range(opt.nepochs):
         optimizerG.step()
 
         # Check progress of training.
-        if i%10 == 0:
-            print(torch.cuda.is_available())
+        if i%150 == 0:
+#             print(torch.cuda.is_available())
             print('[%d/%d][%d/%d]\tLoss_D: %.4f\tLoss_G: %.4f\tD(x): %.4f\tD(G(z)): %.4f / %.4f'
-                  % (epoch, opt.nepochs, i, len(train_loader),
+                  % (epoch+1, opt.nepochs, i, len(train_loader),
                      errD.item(), errG.item(), D_x, D_G_z1, D_G_z2))
 
         # Save the losses for plotting.
@@ -186,22 +197,22 @@ for epoch in range(opt.nepochs):
         D_losses.append(errD.item())
 
         # Check how the generator is doing by saving G's output on a fixed noise.
-        # if (iters % 100 == 0) or ((epoch == opt.nepochs-1) and (i == len(train_loader)-1)):
-        #     with torch.no_grad():
-        #         fake_data = netG(fixed_noise).detach().cpu()
-        #     img_list.append(vutils.make_grid(fake_data, padding=2, normalize=True))
+        if (iters % 100 == 0) or ((epoch+1 == opt.nepochs) and (i == len(train_loader)-1)):
+            with torch.no_grad():
+                fake_data = netG(fixed_noise).detach().cpu()
+            img_list.append(vutils.make_grid(fake_data, padding=2, normalize=True))
 
         iters += 1
 
     # Save the model.
-    if epoch+1 % opt.save_epoch == 0:
+    if (epoch+1) % opt.save_epoch == 0:
         print("Saving the model...")
         torch.save({
             'generator' : netG.state_dict(),
             'discriminator' : netD.state_dict(),
             'optimizerG' : optimizerG.state_dict(),
             'optimizerD' : optimizerD.state_dict(),
-            }, 'model/model_epoch_{}.pth'.format(epoch))
+            }, os.path.join(opt.save_folder, 'model_nz_{}_epoch_{}.pth'.format(opt.nz, epoch+1)))
 
 # Save the final trained model.
 print("Saving the final model...")
@@ -210,22 +221,22 @@ torch.save({
             'discriminator' : netD.state_dict(),
             'optimizerG' : optimizerG.state_dict(),
             'optimizerD' : optimizerD.state_dict(),
-            }, 'model/model_final.pth')
+            }, os.path.join(opt.save_folder,'model_nz_{}.pth'.format(opt.nz)))
 
 # Plot the training losses.
-# plt.figure(figsize=(10,5))
-# plt.title("Generator and Discriminator Loss During Training")
-# plt.plot(G_losses,label="G")
-# plt.plot(D_losses,label="D")
-# plt.xlabel("iterations")
-# plt.ylabel("Loss")
-# plt.legend()
-# plt.show()
+plt.figure(figsize=(10,5))
+plt.title("Generator and Discriminator Loss During Training")
+plt.plot(G_losses,label="G")
+plt.plot(D_losses,label="D")
+plt.xlabel("iterations")
+plt.ylabel("Loss")
+plt.legend()
+plt.savefig(os.path.join(opt.save_folder, 'loss.png'))
 
 # Animation showing the improvements of the generator.
-# fig = plt.figure(figsize=(8,8))
-# plt.axis("off")
-# ims = [[plt.imshow(np.transpose(i,(1,2,0)), animated=True)] for i in img_list]
-# anim = animation.ArtistAnimation(fig, ims, interval=1000, repeat_delay=1000, blit=True)
+fig = plt.figure(figsize=(8,8))
+plt.axis("off")
+ims = [[plt.imshow(np.transpose(i,(1,2,0)), animated=True)] for i in img_list]
+anim = animation.ArtistAnimation(fig, ims, interval=1000, repeat_delay=1000, blit=True)
 # plt.show()
-# anim.save('celeba.gif', dpi=80, writer='imagemagick')
+anim.save(os.path.join(opt.save_folder, 'celeba.gif'), dpi=80, writer='imagemagick')
